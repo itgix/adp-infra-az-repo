@@ -1,0 +1,25 @@
+# Dev AKS cluster configuration
+kubernetes_version: "1.35.5"
+
+node_pool:
+  vm_size: "Standard_D2s_v3"
+  min_count: 2
+  max_count: 5
+
+network_profile:
+  network_plugin: "azure"
+  network_plugin_mode: "overlay"
+
+api_server_access_profile:
+  private_cluster: true
+  private_dns_zone: "/subscriptions/f7f8b016-64ca-4d42-afad-de91b2eae685/resourceGroups/rg-network-dev-swedencentral/providers/Microsoft.Network/privateDnsZones/contoso.privatelink.swedencentral.azmk8s.io"
+  managed_identity_resource_id: "/subscriptions/f7f8b016-64ca-4d42-afad-de91b2eae685/resourceGroups/rg-managed-dev-swedencentral/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mi-aks-dev-swedencentral"
+
+aad_profile:
+  enable_azure_rbac: true
+  managed: true
+
+role_assignments:
+  cluster_admin:
+    role_definition_id_or_name: "Azure Kubernetes Service RBAC Cluster Admin"
+    principal_id: "40ae37df-db49-430c-9da4-f3d7b6d37656"

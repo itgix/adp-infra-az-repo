@@ -1,0 +1,66 @@
+oidc_issuer_url: "https://swedencentral.oic.prod-aks.azure.com/35e55793-1d03-4bb1-99a3-4888c2cda0e0/409173e3-dc11-40bf-a356-8c7839839191/"
+
+# --- When vnet_enabled: true, define the VNet and subnets here ---
+
+vnet_enabled: false
+
+#vnet:
+#  address_space: ["10.20.0.0/16"]
+#  subnets:
+#    - key: "aks-nodes"
+#      name: "snet-aks-nodes"
+#      cidrs: ["10.20.0.0/22"]
+#aks_subnet_name: "snet-aks-nodes"
+
+subnet:
+  name: "snet-aks-nodes"
+  address_prefixes: ["10.10.2.0/23"]
+  vnet_resource_id: "/subscriptions/f7f8b016-64ca-4d42-afad-de91b2eae685/resourceGroups/rg-network-dev-swedencentral/providers/Microsoft.Network/virtualNetworks/vnet-dev-swedencentral"
+
+user_managed_identities:
+  kubelet: {}
+
+  controlplane:
+    role_assignments:
+      private_dns_contributor:
+        definition: "Private DNS Zone Contributor"
+        relative_scope: "/resourceGroups/rg-network-dev-swedencentral/providers/Microsoft.Network/privateDnsZones/contoso.privatelink.swedencentral.azmk8s.io"
+      managed_identity_operator:
+        definition: "Managed Identity Operator"
+        relative_scope: "/resourceGroups/rg-aks-dev-swedencentral/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kubelet-dev-swedencentral"
+
+  dns:
+    role_assignments:
+      dns_contributor:
+        definition: "Private DNS Zone Contributor"
+        relative_scope: "/resourceGroups/rg-network-dev-swedencentral/providers/Microsoft.Network/privateDnsZones/contoso.internal"
+    federated_credentials_advanced:
+      external-dns:
+        subject_identifier: "system:serviceaccount:external-dns:external-dns-sa"
+
+  eso:
+    role_assignments:
+      kv_secrets_user:
+        definition: "Key Vault Secrets User"
+        relative_scope: "/resourceGroups/rg-managed-dev-swedencentral/providers/Microsoft.KeyVault/vaults/kv-contoso-dev-sc"
+    federated_credentials_advanced:
+      eso:
+        subject_identifier: "system:serviceaccount:external-secrets-operator:external-secrets-operator-sa"
+
+  tempo:
+    role_assignments:
+      storage_contributor:
+        definition: "Storage Blob Data Contributor"
+        relative_scope: "/resourceGroups/rg-managed-dev-swedencentral/providers/Microsoft.Storage/storageAccounts/stcontosodevsc"
+    federated_credentials_advanced:
+      tempo:
+        subject_identifier: "system:serviceaccount:monitoring:tempo-sa"
+
+  loki:
+    role_assignments:
+      storage_contributor:
+        definition: "Storage Blob Data Contributor"
+        relative_scope: "/resourceGroups/rg-managed-dev-swedencentral/providers/Microsoft.Storage/storageAccounts/stcontosodevsc"
+    federated_credentials_advanced:
+      loki:
+        subject_identifier: "system:serviceaccount:monitoring:loki-sa"

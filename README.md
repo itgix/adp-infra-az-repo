@@ -1,0 +1,1 @@
+# Azure Application Development Platform (ADP) with Terragrunt 

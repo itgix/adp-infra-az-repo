@@ -1,0 +1,11 @@
+oidc_issuer_url: ""
+
+vnet_enabled: false
+
+user_managed_identities:
+  kubelet: {}
+
+  controlplane:
+    role_assignments:
+      private_dns_contributor:
+        definition: "Private DNS Zone Contributor"

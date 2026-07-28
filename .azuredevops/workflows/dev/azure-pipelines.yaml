@@ -1,0 +1,183 @@
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  TF_PLUGIN_CACHE_DIR: "$(Pipeline.Workspace)/.terraform.d/plugin-cache"
+  TF_IN_AUTOMATION: "true"
+  TG_NON_INTERACTIVE: "true"
+  TG_WORKING_DIR: "$(Build.SourcesDirectory)/adp/dev"
+
+  ENVIRONMENT: "ALZ"
+  SERVICE_CONNECTION: "sc-alz-contoso-adp"
+
+  TARGET_SUBSCRIPTION_ID: "f7f8b016-64ca-4d42-afad-de91b2eae685"
+
+stages:
+# -------------------------
+# PLAN
+# -------------------------
+- stage: Plan
+  displayName: "Terragrunt Plan"
+  jobs:
+  - job: terragrunt_plan
+    displayName: "Run terragrunt plan"
+    pool:
+      vmImage: "ubuntu-latest"
+    container: "devopsinfra/docker-terragrunt:aws-azure-tf-1.14.3-tg-0.97.2"
+
+    steps:
+      - checkout: self
+
+      - bash: |
+          set -euo pipefail
+          mkdir -p "$(TF_PLUGIN_CACHE_DIR)"
+          echo "TF_PLUGIN_CACHE_DIR=$(TF_PLUGIN_CACHE_DIR)"
+          terragrunt --version
+          terraform version
+          az version
+        displayName: "Init cache + print versions"
+
+      - task: Cache@2
+        displayName: "Cache Terraform providers"
+        inputs:
+          key: 'tf | "$(Agent.OS)" | **/.terraform.lock.hcl'
+          restoreKeys: |
+            tf | "$(Agent.OS)"
+          path: "$(TF_PLUGIN_CACHE_DIR)"
+
+      - task: AzureCLI@2
+        displayName: "Terragrunt Init"
+        inputs:
+          azureSubscription: $(SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -euo pipefail
+            az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+            terragrunt init --all --parallelism 1 --working-dir "$(TG_WORKING_DIR)"
+
+      - task: AzureCLI@2
+        displayName: "Terragrunt Plan"
+        inputs:
+          azureSubscription: $(SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -euo pipefail
+            terragrunt plan --all --working-dir "$(TG_WORKING_DIR)" -lock-timeout=10m
+
+      - task: AzureCLI@2
+        displayName: "Terragrunt Show"
+        inputs:
+          azureSubscription: $(SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -euo pipefail
+            az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+            terragrunt show --all --working-dir "$(TG_WORKING_DIR)" || true
+
+# -------------------------
+# APPLY (manual approval via Environment)
+# -------------------------
+- stage: Apply
+  displayName: "Terragrunt Apply"
+  dependsOn: Plan
+  condition: succeeded()
+  jobs:
+  - deployment: terragrunt_apply
+    displayName: "Apply (requires approval)"
+    environment: $(ENVIRONMENT)
+    pool:
+      vmImage: "ubuntu-latest"
+    container: "devopsinfra/docker-terragrunt:aws-azure-tf-1.14.3-tg-0.97.2"
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: Cache@2
+              displayName: "Cache Terraform providers"
+              inputs:
+                key: 'tf | "$(Agent.OS)" | **/.terraform.lock.hcl'
+                restoreKeys: |
+                  tf | "$(Agent.OS)"
+                path: "$(TF_PLUGIN_CACHE_DIR)"
+
+            - task: AzureCLI@2
+              displayName: "Terragrunt Init"
+              inputs:
+                azureSubscription: $(SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+                  terragrunt init --all --parallelism 1 --working-dir "$(TG_WORKING_DIR)"
+
+            - task: AzureCLI@2
+              displayName: "Terragrunt Apply"
+              inputs:
+                azureSubscription: $(SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+                  terragrunt apply --all --working-dir "$(TG_WORKING_DIR)" -auto-approve -lock-timeout=10m
+
+# -------------------------
+# DESTROY (manual approval via Environment)
+# -------------------------
+- stage: Destroy
+  displayName: "Terragrunt Destroy"
+  dependsOn: Plan
+  condition: false
+  jobs:
+  - deployment: terragrunt_destroy
+    displayName: "Destroy (requires approval)"
+    environment: $(ENVIRONMENT)
+    pool:
+      vmImage: "ubuntu-latest"
+    container: "devopsinfra/docker-terragrunt:aws-azure-tf-1.14.3-tg-0.97.2"
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: Cache@2
+              displayName: "Cache Terraform providers"
+              inputs:
+                key: 'tf | "$(Agent.OS)" | **/.terraform.lock.hcl'
+                restoreKeys: |
+                  tf | "$(Agent.OS)"
+                path: "$(TF_PLUGIN_CACHE_DIR)"
+
+            - task: AzureCLI@2
+              displayName: "Terragrunt Init"
+              inputs:
+                azureSubscription: $(SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+                  terragrunt init --all --parallelism 1 --working-dir "$(TG_WORKING_DIR)"
+
+            - task: AzureCLI@2
+              displayName: "Terragrunt Destroy"
+              inputs:
+                azureSubscription: $(SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  az account set --subscription "$(TARGET_SUBSCRIPTION_ID)"
+                  terragrunt destroy --all --working-dir "$(TG_WORKING_DIR)" -auto-approve -lock-timeout=10m

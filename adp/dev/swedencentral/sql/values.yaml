@@ -1,0 +1,15 @@
+postfix: "contoso"
+resource_group_name: "rg-managed-dev-swedencentral"
+
+administrator_login:    "psqladmin"
+administrator_password: "CHANGE_ME"
+
+sku_name:           "B_Standard_B1ms"
+postgresql_version: "16"
+storage_mb:         32768
+zone:               1
+
+databases:
+  adp:
+    name:    "adp"
+    charset: "UTF8"
